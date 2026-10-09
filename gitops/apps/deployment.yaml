@@ -1,0 +1,39 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: secure-demo
+spec:
+  replicas: 1
+  selector:
+    matchLabels: {app: secure-demo}
+  template:
+    metadata:
+      labels: {app: secure-demo}
+    spec:
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 101
+        runAsGroup: 101
+        seccompProfile: {type: RuntimeDefault}
+      containers:
+        - name: nginx
+          image: nginxinc/nginx-unprivileged:1.30-alpine
+          ports:
+            - containerPort: 8080
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: {drop: [ALL]}
+          resources:
+            requests: {cpu: 100m, memory: 64Mi, ephemeral-storage: 32Mi}
+            limits: {cpu: 500m, memory: 128Mi, ephemeral-storage: 64Mi}
+          livenessProbe:
+            httpGet: {path: /, port: 8080}
+          readinessProbe:
+            httpGet: {path: /, port: 8080}
+          volumeMounts:
+            - {name: tmp, mountPath: /tmp}
+      volumes:
+        - name: tmp
+          emptyDir: {sizeLimit: 64Mi}

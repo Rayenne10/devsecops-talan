@@ -1,0 +1,41 @@
+name: Verify internship workflow
+on:
+  push:
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  tests:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: actions/setup-python@v7.0.0
+        with:
+          python-version: '3.12'
+          cache: pip
+      - run: pip install -r requirements-dev.txt
+      - run: pytest -q
+      - run: pip-audit -r requirements.txt
+      - run: bash scripts/install-scanners.sh "$RUNNER_TEMP/scanners"
+      - run: echo "$RUNNER_TEMP/scanners" >> "$GITHUB_PATH"
+      - run: bash scripts/demo.sh
+      - uses: actions/upload-artifact@v7.0.2
+        if: always()
+        with:
+          name: audit-demo-${{ github.run_id }}
+          path: |
+            kube-linter.json
+            kube-score.json
+            analysis.json
+            ai-report.json
+            audit-report.html
+          retention-days: 30
+  lab:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - run: docker compose -f docker-compose/docker-compose.yaml config --quiet
+        env:
+          GRAFANA_ADMIN_PASSWORD: ci-validation-only
+      - run: docker build -t talan-jenkins:ci .
+      - run: docker run --rm --entrypoint bash talan-jenkins:ci -c 'id; python3 -c "import openai,yaml,jsonschema"; kube-linter version; kube-score version'

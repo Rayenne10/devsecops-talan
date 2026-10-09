@@ -1,27 +1,10 @@
 #!/usr/bin/env bash
 set -euo pipefail
-
-REPORT_FILE="kube-linter.json"
-DEFAULT_TARGET="k8s"
-
-# Vérifier que kube-linter est installé
-if ! command -v kube-linter >/dev/null 2>&1; then
-    echo "Error: kube-linter is not installed."
-    exit 1
-fi
-
-# Fichiers à scanner
-if [ "$#" -gt 0 ]; then
-    TARGETS=("$@")
-else
-    TARGETS=("$DEFAULT_TARGET")
-fi
-
-echo "Running KubeLinter on: ${TARGETS[*]}"
+(( $# )) || set -- k8s
 set +e
-kube-linter lint "${TARGETS[@]}" --format json > "$REPORT_FILE"
-KUBELINTER_EXIT_CODE=$?
+kube-linter lint "$@" --format json > kube-linter.json
+status=$?
 set -e
-
-echo "KubeLinter finished with exit code: $KUBELINTER_EXIT_CODE"
-exit 0
+# 1 means findings. Crashes and malformed output must block consolidation.
+(( status <= 1 )) || exit "$status"
+python3 -c 'import json; d=json.load(open("kube-linter.json")); assert isinstance(d,dict) and "Reports" in d'

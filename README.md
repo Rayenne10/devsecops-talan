@@ -1,94 +1,78 @@
-# DevSecOps-Talan
+# TALAN — AI-assisted Kubernetes DevSecOps
 
+[![Verify workflow](https://github.com/Rayenne10/devsecops-talan/actions/workflows/verify.yml/badge.svg)](https://github.com/Rayenne10/devsecops-talan/actions/workflows/verify.yml)
 
+A public internship code snapshot refined into a reproducible review workflow: Jenkins runs **kube-linter and kube-score in parallel**, Python consolidates the findings, OpenAI proposes structured explanations and YAML fixes, and GitLab receives **draft merge requests for human review**. A deterministic security policy blocks unsafe builds independently of the AI rating.
 
-## Getting started
+## Architecture
 
-To make it easy for you to get started with GitLab, here's a list of recommended next steps.
-
-Already a pro? Just edit this README.md and make it your own. Want to make it easy? [Use the template at the bottom](#editing-this-readme)!
-
-## Add your files
-
-* [Create](https://docs.gitlab.com/user/project/repository/web_editor/#create-a-file) or [upload](https://docs.gitlab.com/user/project/repository/web_editor/#upload-a-file) files
-* [Add files using the command line](https://docs.gitlab.com/topics/git/add_files/#add-files-to-a-git-repository) or push an existing Git repository with the following command:
-
-```
-cd existing_repo
-git remote add origin https://gitlab.com/Garbaa/devsecops-talan.git
-git branch -M main
-git push -uf origin main
+```mermaid
+flowchart TD
+  A[Git checkout] --> B[Parallel Kubernetes scanners]
+  B --> C[Consolidation and baseline policy]
+  C --> D[Structured AI review]
+  D --> E[Validated draft GitLab MR]
+  D --> F[HTML report and Elasticsearch audit]
+  D --> G[Build risk gate]
+  E --> H[Human review and merge]
+  H --> I[Flux reconciliation on k3s]
 ```
 
-## Integrate with your tools
+The gate is an audit result; it does not itself deploy. Flux is independently configured to watch the reviewed Git branch. Protect that branch with required approvals and successful checks: a failed Jenkins build does **not** stop Flux from reconciling an unprotected branch.
 
-* [Set up project integrations](https://gitlab.com/Garbaa/devsecops-talan/-/settings/integrations)
+## Try it without credentials
 
-## Collaborate with your team
+Linux/WSL, Python 3.12+, curl and Bash:
 
-* [Invite team members and collaborators](https://docs.gitlab.com/user/project/members/)
-* [Create a new merge request](https://docs.gitlab.com/user/project/merge_requests/creating_merge_requests/)
-* [Automatically close issues from merge requests](https://docs.gitlab.com/user/project/issues/managing_issues/#closing-issues-automatically)
-* [Enable merge request approvals](https://docs.gitlab.com/user/project/merge_requests/approvals/)
-* [Set auto-merge](https://docs.gitlab.com/user/project/merge_requests/auto_merge/)
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements-dev.txt
+bash scripts/install-scanners.sh "$HOME/.local/bin"
+export PATH="$HOME/.local/bin:$PATH"
+pytest -q
+bash scripts/demo.sh
+```
 
-## Test and Deploy
+The demo runs real scanners on two fixtures, writes `analysis.json`, `ai-report.json` and `audit-report.html`, and proves that the deliberately unsafe manifest is blocked. The final PASS means that the **expected blocked gate** was observed. Offline mode makes no OpenAI calls, generates no AI patches and creates no GitLab MR. Scanner best-practice findings in the secure fixture are still available for review; “baseline secure” does not mean every scanner check is satisfied.
 
-Use the built-in continuous integration in GitLab.
+## Jenkins and observability lab
 
-* [Get started with GitLab CI/CD](https://docs.gitlab.com/ci/quick_start/)
-* [Analyze your code for known vulnerabilities with Static Application Security Testing (SAST)](https://docs.gitlab.com/user/application_security/sast/)
-* [Deploy to Kubernetes, Amazon EC2, or Amazon ECS using Auto Deploy](https://docs.gitlab.com/topics/autodevops/requirements/)
-* [Use pull-based deployments for improved Kubernetes management](https://docs.gitlab.com/user/clusters/agent/)
-* [Set up protected environments](https://docs.gitlab.com/ci/environments/protected_environments/)
+```bash
+export GRAFANA_ADMIN_PASSWORD='choose-a-local-password'
+docker compose -f docker-compose/docker-compose.yaml up --build -d
+```
 
-***
+Open Jenkins at http://localhost:8080 and Grafana at http://localhost:3000. Get the Jenkins initial administrator password using `docker compose -f docker-compose/docker-compose.yaml exec jenkins cat /var/jenkins_home/secrets/initialAdminPassword`. Create a Pipeline from SCM using this repo and `Jenkinsfile`. Required plugins are installed in the image. OFFLINE is enabled by default; the unsafe fixture makes the audit build fail intentionally.
 
-# Editing this README
+The lab creates its own named volumes and network. Ports bind to loopback, Jenkins runs as its normal non-root user, and no Docker socket is mounted. Elasticsearch security is disabled only for this isolated local lab. Prometheus monitors itself; Grafana provisions Prometheus and the Elasticsearch audit datasource. Historical internship infrastructure dashboards/exporters are not included in the original public snapshot. Configure authenticated exporters and TLS before using these components beyond your laptop.
 
-When you're ready to make this README your own, just edit this file and use the handy template below (or feel free to structure it however you want - this is just a starting point!). Thanks to [makeareadme.com](https://www.makeareadme.com/) for this template.
+Stop with `docker compose -f docker-compose/docker-compose.yaml down`. Add `--volumes` only if you intend to erase Jenkins configuration and audit history.
 
-## Suggestions for a good README
+## Live AI and GitLab workflow
 
-Every project is different, so consider which of these sections apply to yours. The sections used in the template are suggestions for most open source projects. Also keep in mind that while a README can be too long and detailed, too long is better than too short. If you think your README is too long, consider utilizing another form of documentation rather than cutting out information.
+Store `OPENAI_API_KEY` and `GITLAB_API_TOKEN` as Jenkins secret-text credentials, never in Git. Disable OFFLINE to use the configurable `OPENAI_MODEL` (default `gpt-4o-mini`, matching the original code). The workflow uses strict JSON Schema, a 60-second request timeout, and at most three retries for transient connection/rate-limit errors. Invalid, truncated or refused responses fail the stage.
 
-## Name
-Choose a self-explaining name for your project.
+Set the GitLab project/target branch parameters and enable CREATE_DRAFT_MR only when the GitLab mirror contains the **exact audited `GIT_COMMIT`**. Use a scoped project access token and a protected target branch. The commit API creates a new branch from that SHA, then opens a `Draft:` MR. No auto-merge or cluster write exists in the Python workflow. API calls have timeouts and reject redirects. A failed MR request may leave its proposed branch behind: inspect GitLab and remove it before retrying the same build identifier.
 
-## Description
-Let people know what your project can do specifically. Provide context and add a link to any reference visitors might be unfamiliar with. A list of Features or a Background subsection can also be added here. If there are alternatives to your project, this is a good place to list differentiating factors.
+Patch validation allows only scanned paths, preserves resource identities, rejects Secrets/List objects and baseline policy violations, and limits patch size. This is deliberately conservative; new resources require a separate manual change. It does not prove Kubernetes schema compatibility or application correctness. Review images, commands, network access and business behavior, rerun scanners and perform server-side validation before approval. Manifests sent to OpenAI must contain no sensitive configuration, proprietary data or embedded credentials.
 
-## Badges
-On some READMEs, you may see small images that convey metadata, such as whether or not all the tests are passing for the project. You can use Shields to add some to your README. Many services also have instructions for adding a badge.
+## GitOps demo
 
-## Visuals
-Depending on what you are making, it can be a good idea to include screenshots or even a video (you'll frequently see GIFs rather than actual videos). Tools like ttygif can help, but check out Asciinema for a more sophisticated method.
+`gitops/apps` contains only the secure example; **never reconcile the `k8s` fixture directory**. With Flux already installed on your k3s lab:
 
-## Installation
-Within a particular ecosystem, there may be a common way of installing things, such as using Yarn, NuGet, or Homebrew. However, consider the possibility that whoever is reading your README is a novice and would like more guidance. Listing specific steps helps remove ambiguity and gets people to using your project as quickly as possible. If it only runs in a specific context like a particular programming language version or operating system or has dependencies that have to be installed manually, also add a Requirements subsection.
+```bash
+kubectl apply -f gitops/flux/source.yaml
+kubectl apply -f gitops/flux/reconciliation.yaml
+flux get sources git -A
+flux get kustomizations -A
+kubectl rollout status deployment/secure-demo
+```
 
-## Usage
-Use examples liberally, and show the expected output if you can. It's helpful to have inline the smallest example of usage that you can demonstrate, while providing links to more sophisticated examples if they are too long to reasonably include in the README.
+These examples watch the public GitHub repository. For the internship GitLab workflow, change the GitRepository URL/ref and configure a Flux secret for your protected GitLab mirror. Human approval must precede the watched branch update. The included configs do not install Flux or provision k3s.
 
-## Support
-Tell people where they can go to for help. It can be any combination of an issue tracker, a chat room, an email address, etc.
+## Evidence and interview preparation
 
-## Roadmap
-If you have ideas for releases in the future, it is a good idea to list them in the README.
+See [verification scope](docs/VERIFICATION.md), [interview notes](docs/INTERVIEW.md) and [security boundaries](docs/SECURITY.md). CI runs Python safety tests, dependency auditing, real scanner/offline integration, and builds the Jenkins image. It archives reports for 30 days.
 
-## Contributing
-State if you are open to contributions and what your requirements are for accepting them.
-
-For people who want to make changes to your project, it's helpful to have some documentation on how to get started. Perhaps there is a script that they should run or some environment variables that they need to set. Make these steps explicit. These instructions could also be useful to your future self.
-
-You can also document commands to lint the code or run tests. These steps help to ensure high code quality and reduce the likelihood that the changes inadvertently break something. Having instructions for running tests is especially helpful if it requires external setup, such as starting a Selenium server for testing in a browser.
-
-## Authors and acknowledgment
-Show your appreciation to those who have contributed to the project.
-
-## License
-For open source projects, say how it is licensed.
-
-## Project status
-If you have run out of energy or time for your project, put a note at the top of the README saying that development has slowed down or stopped completely. Someone may choose to fork your project or volunteer to step in as a maintainer or owner, allowing your project to keep going. You can also make an explicit request for maintainers.
-# test webhook
+**Historical claims versus public evidence:** the internship description reports 15+ manifests, 23 findings in 31 seconds, Flux/k3s and infrastructure monitoring. The original public repository had **two manifest files**, no benchmark receipts, no Flux configuration and no Prometheus provisioning. Those historical metrics cannot be reproduced or independently established from this snapshot. The new demo configs and tests are portfolio refinements, not retroactive evidence of internship delivery. The original work and Git history remain attributable to their original contributors; no new license is imposed on internship code.

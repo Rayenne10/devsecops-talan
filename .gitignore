@@ -1,0 +1,13 @@
+.venv/
+__pycache__/
+.pytest_cache/
+.env
+*.json.tmp
+*-report.html
+analysis.json
+ai-report.json
+kube-linter.json
+kube-score.json
+renovate.json
+ai-patches/
+remediation-*.json

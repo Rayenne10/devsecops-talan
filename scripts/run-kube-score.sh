@@ -1,27 +1,10 @@
 #!/usr/bin/env bash
 set -euo pipefail
-
-REPORT_FILE="kube-score.json"
-DEFAULT_TARGET="k8s"
-
-# Vérifier que kube-score est installé
-if ! command -v kube-score >/dev/null 2>&1; then
-    echo "Error: kube-score is not installed."
-    exit 1
-fi
-
-# Fichiers à scanner
-if [ "$#" -gt 0 ]; then
-    TARGETS=("$@")
-else
-    TARGETS=("$DEFAULT_TARGET")
-fi
-
-echo "Running Kube-Score on: ${TARGETS[*]}"
+if (( $# == 0 )); then mapfile -d '' targets < <(find k8s -name '*.yaml' -print0); set -- "${targets[@]}"; fi
+(( $# )) || exit 2
 set +e
-kube-score score "${TARGETS[@]}" --output-format json > "$REPORT_FILE"
-KUBESCORE_EXIT_CODE=$?
+kube-score score "$@" --output-format json > kube-score.json
+status=$?
 set -e
-
-echo "Kube-Score finished with exit code: $KUBESCORE_EXIT_CODE"
-exit 0
+(( status <= 1 )) || exit "$status"
+python3 -c 'import json; d=json.load(open("kube-score.json")); assert isinstance(d,list) and d'

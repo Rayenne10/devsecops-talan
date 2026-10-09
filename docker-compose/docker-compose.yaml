@@ -1,61 +1,45 @@
-version: '3.8'
-
 services:
-  elasticsearch:
-    image: elasticsearch:7.17.10
-    container_name: elasticsearch
-    environment:
-      - discovery.type=single-node
-      - "ES_JAVA_OPTS=-Xms512m -Xmx512m" # Limite de RAM pour la VM
-    ports:
-      - "9200:9200"
-    volumes:
-      - es_data:/usr/share/elasticsearch/data
-    networks:
-      - devsecops-net
-
   jenkins:
-    image: custom-jenkins:latest
-    container_name: jenkins
+    build:
+      context: ..
     ports:
-      - "8080:8080"
-      - "50000:50000"
+      - '127.0.0.1:8080:8080'
     environment:
-      - JAVA_OPTS=-Dhudson.model.DirectoryBrowserSupport.CSP=
+      ELASTICSEARCH_URL: http://elasticsearch:9200
     volumes:
       - jenkins_data:/var/jenkins_home
-      - /var/run/docker.sock:/var/run/docker.sock
-    group_add:
-      - "${DOCKER_GID:-999}"
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8080/login"]
+      test: ['CMD', 'curl', '-fsS', 'http://localhost:8080/login']
       interval: 30s
       timeout: 10s
-      retries: 3
-      start_period: 60s
-    networks:
-      - devsecops-net
-    depends_on:
-      - elasticsearch
-
-  grafana:
-    image: grafana/grafana:latest
-    container_name: grafana
+      retries: 10
+      start_period: 90s
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.19.5
+    environment:
+      discovery.type: single-node
+      xpack.security.enabled: 'false'
+      ES_JAVA_OPTS: '-Xms512m -Xmx512m'
     ports:
-      - "3000:3000"
+      - '127.0.0.1:9200:9200'
+    volumes:
+      - es_data:/usr/share/elasticsearch/data
+  prometheus:
+    image: prom/prometheus:v3.7.1
+    ports:
+      - '127.0.0.1:9090:9090'
+    volumes:
+      - ../monitoring/prometheus.yaml:/etc/prometheus/prometheus.yml:ro
+  grafana:
+    image: grafana/grafana:12.2.1
+    ports:
+      - '127.0.0.1:3000:3000'
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:?Set GRAFANA_ADMIN_PASSWORD}
     volumes:
       - grafana_data:/var/lib/grafana
-    networks:
-      - devsecops-net 
-    depends_on:
-      - elasticsearch
-
+      - ../monitoring/datasources.yaml:/etc/grafana/provisioning/datasources/datasources.yaml:ro
 volumes:
-  es_data:
   jenkins_data:
-    external: true # Conserve vos credentials et configurations Jenkins !
+  es_data:
   grafana_data:
-
-networks:
-  devsecops-net:
-    external: true

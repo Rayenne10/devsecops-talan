@@ -35,7 +35,7 @@ def print_cli_summary(report, scanned_files, build_time):
     verdict_map = {
         "HIGH":   col + bold + "  [BLOQUE]  Deploiement interdit -- corrections obligatoires" + reset,
         "MEDIUM": col + bold + "  [RISQUE]  Deploiement deconseille -- revision recommandee" + reset,
-        "LOW":    col + bold + "  [OK]      Deploiement autorise -- quelques ameliorations possibles" + reset,
+        "LOW":    col + bold + "  [OK]      Aucun blocage de politique baseline -- quelques ameliorations possibles" + reset,
     }
     print(verdict_map.get(level, "  Criticite inconnue"))
     print()
@@ -92,7 +92,7 @@ def generate_html(report, scanned_files, build_time, out_path):
     level_colors = {
         "HIGH":   {"badge_bg": "#fef2f2", "badge_text": "#dc2626", "badge_border": "#fca5a5", "bar": "#ef4444", "verdict": "Deploiement bloque"},
         "MEDIUM": {"badge_bg": "#fff7ed", "badge_text": "#ea580c", "badge_border": "#fdba74", "bar": "#f97316", "verdict": "Deploiement risque"},
-        "LOW":    {"badge_bg": "#f0fdf4", "badge_text": "#16a34a", "badge_border": "#86efac", "bar": "#22c55e", "verdict": "Deploiement autorise"},
+        "LOW":    {"badge_bg": "#f0fdf4", "badge_text": "#16a34a", "badge_border": "#86efac", "bar": "#22c55e", "verdict": "Aucun blocage de politique baseline"},
     }
     c = level_colors.get(level, {"badge_bg": "#f9fafb", "badge_text": "#6b7280", "badge_border": "#e5e7eb", "bar": "#9ca3af", "verdict": "Criticite inconnue"})
 
@@ -118,7 +118,7 @@ h2{{font-size:13px;font-weight:600;color:#9ca3af;text-transform:uppercase;letter
 <div style='display:flex;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;gap:12px;'>
 <div>
 <p style='font-size:18px;font-weight:600;color:#111827;margin-bottom:6px;'>Audit Kubernetes</p>
-<p style='font-size:13px;color:#9ca3af;'>{build_time}</p>
+<p style='font-size:13px;color:#9ca3af;'>{esc(build_time)}</p>
 <div style='margin-top:10px;display:flex;flex-wrap:wrap;gap:6px;'>{files_html}</div>
 </div>
 <span style='background:{c["badge_bg"]};color:{c["badge_text"]};border:1px solid {c["badge_border"]};font-size:12px;font-weight:600;padding:4px 14px;border-radius:99px;'>{level}</span>
