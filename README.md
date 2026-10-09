@@ -22,7 +22,7 @@ The gate is an audit result; it does not itself deploy. Flux is independently co
 
 ## Try it without credentials
 
-Linux/WSL, Python 3.12+, curl and Bash:
+Linux/WSL on x86-64, Python 3.12+, curl and Bash:
 
 ```bash
 python3 -m venv .venv
